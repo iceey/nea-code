@@ -1,80 +1,77 @@
-# Phase 21: Empty State Messages + UI Polish
+# Phase 22: Code Comments and Documentation
 
 ## What Changed
 
-- Added empty state messages to all History tab charts
-- Expanded predict function to return 4 values (added results table + consensus)
-- Fixed consensus logic firing with only one model
-- Added a little intro message to Train and Predict tabs for new users
+- Proper docstrings on all functions across three Python files
+- Section markers (`# ===`) to split up the big files so I can find things
+- Inline comments explaining **why** not **what**
+- The docstring format I found in tutorials, with Args, Returns, and custom sections
+- ~40 lines of documentation added, nothing actually changed in how the app works
 
-This grew from a 30-minute task to about 2.5 hours because testing the empty states kept turning up more stuff to fix. Kind of annoying but that's what this phase was for.
+Honestly expected this to be boring. It wasn't boring exactly, but it took way longer than I thought. Writing documentation for 900+ lines took ages because I had to actually understand what everything does well enough to explain it. I found that way harder than I expected.
 
-## Empty State Charts
+## app_ui.py (~935 → ~955 lines, +~20)
 
-Instead of returning `None` (blank chart), empty-data paths now return a Plotly figure with a centred annotation:
+The big one. First thing was section markers, those `# ===` dividers splitting the file into DATA LOADING, DATABASE FUNCTIONS, TRAINING, PREDICTION, CHARTS, UI LAYOUT. Before this I had to Cmd+F for function names. Now I can just scroll.
 
-```python
-fig.add_annotation(
-    text="No training history\n\nTrain a model to see charts!",
-    xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False
-)
-```
+The most important docstring was probably `save_training_run()` because it changes the database in ways you wouldn't guess from the function name. Added a custom "Database Changes" section. I made that up because I thought if the function is doing stuff to the database that you can't tell from the name, I should probably write that down.
 
-Used `xref="paper"` coordinates so the text sits at (0.5, 0.5) regardless of axis ranges. Grey text for empty states, red for errors. Hidden axes since they'd just show 0-1 with no data.
+Also documented `get_training_history()` with a note about using sequential queries instead of JOINs. The actual reason: sequential queries are simpler to debug and I can follow each one on its own. JOINs would probably be faster but with like 50 rows it honestly doesn't matter.
 
-## Predict Function Changes
+For `train_new_model()` I used "Yields" instead of "Returns" because it's a generator (Phase 10). Small thing but the distinction matters since it's a generator not a normal function.
 
-**Added results table + consensus output**: Expanded the predict function from returning 3 values to 4 (original image, preprocessed image, results dataframe, consensus text). This meant updating every if/else branch to return the right number of values with an empty DataFrame for error paths. Gradio throws a `ValueError` if the count doesn't match the outputs list, so I had to be thorough.
+## models.py (116 → 129 lines, +13)
 
-**Consensus guard**: One of the consensus checks was running even with a single model, which would show "All models agree!" -- technically true but meaningless. Added `len(clean_preds) >= 2` so it only shows when there are multiple models to compare.
+Added a module header comparing all three architectures: accuracy, speed, when you'd pick each one. Also added inline comments on the model layers and a section divider. If I forget why I picked one architecture over another I can just check the docstring.
 
-## What You See on First Launch
+## utils.py (34 lines, minor comment tidying)
 
-Also noticed the Train and Predict tabs had the same blank-screen problem on first launch. Train tab now shows a guide with the three architectures and rough training times. Predict tabs show "Waiting for input..." pointing to the upload/draw area. Prevents the "what am I supposed to do?" moment.
+Short file, not much to do here. Added a section header and tidied up the existing comments -- shortened a few that were too wordy and combined the greyscale + resize comments since they're basically one step. Didn't add full numbered steps like I planned because the code's already pretty readable as-is.
+
+## How I Wrote the Comments
+
+Used the docstring format I kept seeing in tutorials, the one with `Args:`, `Returns:`, indented descriptions. Tried to say why I did things a certain way instead of just repeating what the code already says. Like there's no point writing `# add 1 to x` next to `x = x + 1` but if it's `# skip header row` then that's actually useful. For inline comments, things that aren't obvious just from reading the code, like database queries, numpy operations, Gradio quirks. Didn't comment basic Python.
+
+## Line Count Impact
+
+| File | Phase 21 | Phase 22 | Change |
+|------|----------|----------|--------|
+| app_ui.py | ~935 | ~955 | +~20 |
+| models.py | 116 | 129 | +13 |
+| utils.py | 34 | 34 | 0 |
+| **Total** | | | **~+33 lines** |
 
 ## Testing
 
-Wiped the database and tested fresh launch - every tab has clear guidance. Trained a couple of models, verified empty states disappear once there's real data. Checked predict function with various error conditions to confirm the 4-tuple fix. Tested with just one trained model for the consensus check.
+Ran `python -c "import app_ui"` (and models, utils) to check no docstrings broke the syntax. Tested `help(models.create_mlp)` in the REPL and the formatted output looks right.
 
-I'd been skipping this stuff while I was building features but it actually makes a massive difference to how finished it feels.
+## Reflection
 
-## Decisions
+Writing the comments made me actually go through my own code properly. Found a couple of places where I'd done something for a reason I'd already half-forgotten - now it's written down. That's really the point: if I come back to this in a few months I'll have no idea what anything does otherwise. Took about 3 hours. Documentation took way longer than I expected.
 
-### Centring the Message When There's No Data
+## Why I Did It This Way
 
-```python
-xref="paper", yref="paper", x=0.5, y=0.5
-```
+### Some Functions Got Better Docs Than Others
 
-Using `"paper"` coordinates means 0.5 is always the middle of the chart, no matter what the axes say. For an empty chart with no data, the axes don't mean anything anyway. If I used normal x/y coordinates the text would end up in a weird position.
+Only `create_mlp()` got the full treatment with parameters, expected accuracy, and layer shapes. The CNN functions got shorter descriptions even though they're more complex. The MLP was the first one I documented so I spent the most time on it. The CNN docstrings just reference the MLP one where the patterns are the same.
 
-### Same Chart Height Whether Empty or Not
+### `predict_with_validation()` Has a Rubbish Docstring
 
-Both the empty-state charts and the ones with actual data use `height=400`. If they were different heights, the page would jump around when switching between empty and filled charts which would look janky.
+It's a 150-line function that does about five different things: input validation, preprocessing, calling multiple models, building a table, error handling. The docstring is two lines. I left it because I just couldn't work out how to summarise it properly, which probably means the function itself is too big and should be split up. Might need to revisit that.
 
-### All DataFrame Columns as Strings
+### Comment Order in utils.py
 
-Even though confidence is a number, I format it with a `%` sign (like `"93.4%"`). So I set all the column types to `"str"` to stop Gradio trying to do number sorting on something that has a percentage sign in it.
+The code does greyscale then resize. Probably doesn't matter which order, but I left it as-is since this phase was documentation only.
 
-### Chaining Updates With `.then()`
+### Leftover `preprocess_image` in models.py
 
-The predict button uses `.then()` so the chart refreshes after the prediction finishes. If they ran at the same time the chart might not have the latest data because the prediction hasn't saved to the database yet. `.then()` makes them run one after the other.
+`utils.py` and `models.py` both have image preprocessing code. The one in `utils.py` is the one that actually gets used. The one in `models.py` is left over from before I created `utils.py`. It never gets called. I just documented it rather than deleting it since this phase was supposed to be documentation only, not code changes.
 
-## How to Run
+## Differences from Phase 21
 
-```bash
-python init_db.py
-python app_ui.py
-```
-
-On first launch, every tab now shows guidance instead of blank space.
-
-## Differences from Phase 20
-
-| Aspect | Phase 20 | Phase 21 |
+| Aspect | Phase 21 | Phase 22 |
 |--------|----------|----------|
-| **Empty states** | Blank charts / None | Annotated Plotly figures with messages |
-| **Predict output** | 3 values (images + text) | 4 values (images + DataFrame + consensus) |
-| **First launch** | Blank tabs | Guidance text on all tabs |
-| **Consensus** | Always shown | Only with 2+ models |
-| **app_ui.py** | 786 lines | 935 lines (+149) |
+| **Function docstrings** | Basic (1-2 lines) | Detailed (10-20 lines) |
+| **Inline comments** | Minimal | Extensive with reasoning |
+| **Section markers** | None | Clear sections throughout |
+| **Total lines added** | - | ~+33 (documentation only) |
