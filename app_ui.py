@@ -1,6 +1,6 @@
 """
 MNIST Digit Recognition Project
-Phase 22: Documentation Pass
+Phase 23: Final Polish
 """
 
 import warnings
@@ -23,11 +23,9 @@ import time
 # ============================================================================
 # DATA LOADING
 # ============================================================================
-# Load MNIST once at startup so we don't reload every time
 print("Loading MNIST dataset...")
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
-# Normalise pixels to 0-1
 x_train = x_train.astype('float32') / 255.0
 x_test = x_test.astype('float32') / 255.0
 
@@ -37,7 +35,6 @@ print(f"Dataset loaded: {x_train.shape[0]} training images, {x_test.shape[0]} te
 # ============================================================================
 # UI THEME CONFIGURATION
 # ============================================================================
-# Custom theme -- blue, clean look
 custom_theme = gr.themes.Soft(
     primary_hue="blue",
     secondary_hue="slate",
@@ -65,18 +62,16 @@ def save_training_run(architecture, epochs, batch_size, val_accuracy, duration=N
     result = cursor.fetchone()
     
     if result:
-        model_id = result[0]  # Architecture already exists
+        model_id = result[0]
     else:
-        # First time training this architecture - create new model entry
         cursor.execute('INSERT INTO models (architecture) VALUES (?)', (architecture,))
-        model_id = cursor.lastrowid  # Get the auto-generated model_id
+        model_id = cursor.lastrowid
     
-    # Get next run_id for unique filename
+    # Next run_id for unique filename
     cursor.execute('SELECT MAX(run_id) FROM training_runs')
     max_run = cursor.fetchone()[0]
     next_run_id = 1 if max_run is None else max_run + 1
     
-    # Create unique filename e.g. "model_small_cnn_run3.keras"
     arch_clean = architecture.lower().replace(' ', '_')
     model_filename = f'model_{arch_clean}_run{next_run_id}.keras'
     
@@ -107,35 +102,30 @@ def get_training_history():
     
     runs = cursor.fetchall()
     
-    # Handle empty case (no training runs yet)
+    # Handle empty case
     if not runs:
         conn.close()
-        # Empty DataFrame with column headers so Gradio still renders the column names
         return pd.DataFrame(columns=['Run ID', 'Architecture', 'Epochs', 'Batch Size', 'Accuracy (%)', 'Filename', 'Timestamp'])
     
-    # Build list with architecture names (separate query for each - no JOIN)
     data = []
     for run_id, model_id, epochs, batch_size, val_accuracy, model_filename, created_at in runs:
-        # Look up architecture name for this model_id
         cursor.execute('SELECT architecture FROM models WHERE model_id = ?', (model_id,))
         result = cursor.fetchone()
         arch = result[0] if result else 'Unknown'
         
-        # Build dictionary for this row (easier than list of lists)
         data.append({
             'Run ID': run_id,
             'Architecture': arch,
             'Epochs': epochs,
             'Batch Size': batch_size,
-            'Accuracy (%)': round(val_accuracy * 100, 2),  # Convert 0.9812 → 98.12%
+            'Accuracy (%)': round(val_accuracy * 100, 2),
             'Filename': model_filename,
             'Timestamp': created_at
         })
     
     conn.close()
     
-    # pd.DataFrame turns list of dicts into a table -- each dict becomes a row,
-    # keys become the column names (Run ID, Architecture, etc.)
+    # pd.DataFrame turns list of dicts into a table
     df = pd.DataFrame(data)
     return df
 
@@ -168,7 +158,6 @@ def save_epoch_metrics(run_id, epoch, train_accuracy, val_accuracy):
 
 def create_accuracy_chart():
     """Create accuracy timeline for latest training run."""
-    # try/except so chart functions don't crash the whole UI
     try:
         conn = sqlite3.connect('artifacts/training_history.db')
         cursor = conn.cursor()
@@ -244,7 +233,7 @@ def create_accuracy_chart():
         )
         return fig
     
-    # List comprehensions to pull out each column from the query results
+    # Pull out each column from query results
     epochs = [row[0] for row in data]
     train_acc = [row[1] * 100 for row in data]
     val_acc = [row[2] * 100 for row in data]
@@ -278,7 +267,6 @@ def create_performance_dashboard():
         conn = sqlite3.connect('artifacts/training_history.db')
         cursor = conn.cursor()
         
-        # Get all runs with performance data (no JOIN - query models separately)
         cursor.execute('''
             SELECT model_id, val_accuracy, duration
             FROM training_runs
@@ -288,10 +276,8 @@ def create_performance_dashboard():
         
         runs = cursor.fetchall()
         
-        # Build data list with architecture names
         data = []
         for model_id, val_acc, duration in runs:
-            # Look up architecture for this model_id
             cursor.execute('SELECT architecture FROM models WHERE model_id = ?', (model_id,))
             arch_result = cursor.fetchone()
             if arch_result:
@@ -338,22 +324,20 @@ def create_performance_dashboard():
     architectures = []
     accuracies = []
     durations = []
-    colors = []
+    colours = []
     
-    # Colour mapping for architectures
-    color_map = {
-        'MLP': '#1f77b4',      # Blue
-        'Small CNN': '#ff7f0e', # Orange  
-        'Deeper CNN': '#2ca02c' # Green
+    colour_map = {
+        'MLP': '#1f77b4',
+        'Small CNN': '#ff7f0e',
+        'Deeper CNN': '#2ca02c'
     }
     
     for arch, acc, dur in data:
         architectures.append(arch)
-        accuracies.append(acc * 100)  # Convert to percentage
+        accuracies.append(acc * 100)
         durations.append(dur)
-        colors.append(color_map.get(arch, '#9467bd'))  # Default purple
+        colours.append(colour_map.get(arch, '#9467bd'))
     
-    # Create scatter plot
     fig = go.Figure()
     
     # Add traces for each architecture
@@ -361,7 +345,7 @@ def create_performance_dashboard():
         arch_mask = [a == arch for a in architectures]
         arch_accuracies = [accuracies[i] for i in range(len(accuracies)) if arch_mask[i]]
         arch_durations = [durations[i] for i in range(len(durations)) if arch_mask[i]]
-        arch_colors = [colors[i] for i in range(len(colors)) if arch_mask[i]]
+        arch_colours = [colours[i] for i in range(len(colours)) if arch_mask[i]]
         
         fig.add_trace(go.Scatter(
             x=arch_durations,
@@ -370,10 +354,9 @@ def create_performance_dashboard():
             name=arch,
             marker=dict(
                 size=10,
-                color=arch_colors[0] if arch_colors else '#9467bd',
+                color=arch_colours[0] if arch_colours else '#9467bd',
                 line=dict(width=2, color='white')
             ),
-            # zip() pairs up the two lists so we get matched (acc, dur) tuples
             text=[f'{arch}<br>Accuracy: {acc:.1f}%<br>Time: {dur:.1f}s' 
                   for acc, dur in zip(arch_accuracies, arch_durations)],
             hovertemplate='%{text}<extra></extra>'
@@ -398,15 +381,13 @@ def get_best_models():
     conn = sqlite3.connect('artifacts/training_history.db')
     cursor = conn.cursor()
     
-    # Get all architectures (with model_id for lookup)
+    # Get all architectures
     cursor.execute('SELECT model_id, architecture FROM models')
     models = cursor.fetchall()
     
     best_models = {}
     
     for model_id, arch in models:
-        # Find best run for this architecture (highest validation accuracy)
-        # Simple query without JOIN
         cursor.execute('''
             SELECT model_filename, val_accuracy 
             FROM training_runs
@@ -418,7 +399,6 @@ def get_best_models():
         result = cursor.fetchone()
         if result:
             filename = result[0]
-            # Verify file exists before adding
             if os.path.exists(f'artifacts/{filename}'):
                 best_models[arch] = (filename, result[1])
             else:
@@ -435,14 +415,11 @@ def get_best_models():
 def train_new_model(architecture, epochs, batch_size):
     """Train a model (MLP or CNN) and show progress each epoch."""
     try:
-        # Convert to integers (Gradio passes as strings from Number components)
         epochs = int(epochs)
         batch_size = int(batch_size)
         
-        # Start timing
         start_time = time.time()
         
-        # Create model based on selected architecture
         if architecture == "MLP":
             new_model = create_mlp()
         elif architecture == "Small CNN":
@@ -453,17 +430,12 @@ def train_new_model(architecture, epochs, batch_size):
             yield f"Error: Unknown architecture '{architecture}'"
             return
         
-        # Initial message
         yield f"Starting training ({architecture})...\nEpochs: {epochs}, Batch Size: {batch_size}\n\n"
         
-        # Get run_id for this training session (save metrics later)
         run_id = None
         
-        # Train one epoch at a time to show progress
         all_results = []
         for epoch in range(epochs):
-            print(f"Training epoch {epoch + 1}/{epochs}...")
-            
             # Train for one epoch
             history = new_model.fit(
                 x_train, y_train,
@@ -473,35 +445,26 @@ def train_new_model(architecture, epochs, batch_size):
                 verbose=0  # Suppress Keras output
             )
             
-            # Get accuracy for this epoch
             train_acc = history.history['accuracy'][0] * 100
             val_acc = history.history['val_accuracy'][0] * 100
-            final_val_acc = history.history['val_accuracy'][0]  # Store for database
+            final_val_acc = history.history['val_accuracy'][0]
             
-            # Save metrics to database (get run_id on first epoch)
+            # Save to DB on first epoch to get run_id
             if run_id is None:
-                # Calculate duration so far (for first epoch)
                 current_duration = time.time() - start_time
-                # Save training run first to get run_id
                 model_filename = save_training_run(architecture, epochs, batch_size, final_val_acc, current_duration)
                 run_id = get_latest_run_id()
             
-            # Save epoch metrics
             save_epoch_metrics(run_id, epoch + 1, history.history['accuracy'][0], history.history['val_accuracy'][0])
             
-            # Store results
             epoch_result = f"Epoch {epoch + 1}/{epochs}: Train Acc = {train_acc:.2f}%, Val Acc = {val_acc:.2f}%"
             all_results.append(epoch_result)
             
-            # Yield progress update (shows all previous epochs + current)
             yield "\n".join(all_results) + "\n\n"
         
-        # Save model file
         model_path = f'artifacts/{model_filename}'
         save_model(new_model, model_path)
-        print(f"Model saved to {model_path}")
         
-        # Calculate total training duration
         total_duration = time.time() - start_time
         
         # Update duration in database
@@ -511,7 +474,6 @@ def train_new_model(architecture, epochs, batch_size):
         conn.commit()
         conn.close()
         
-        # Final summary
         final_result = "\n".join(all_results) + f"\n\nTraining Complete!\nModel saved to: {model_path}\nSaved to database with Run ID {run_id}\nTotal time: {total_duration:.1f}s"
         yield final_result
         
@@ -536,7 +498,7 @@ def predict_with_validation(input_method, uploaded_image, drawn_image):
                 blank_image = Image.new('L', (28, 28), 255)
                 return blank_image, blank_image, "❌ Please draw a digit on the canvas first."
             
-            # Sketchpad returns a dict with 'composite' key containing the image
+            # Sketchpad gives a dict with 'composite' key
             if isinstance(drawn_image, dict):
                 if 'composite' in drawn_image and drawn_image['composite'] is not None:
                     image = drawn_image['composite']
@@ -557,19 +519,17 @@ def predict_with_validation(input_method, uploaded_image, drawn_image):
             blank_image = Image.new('L', (28, 28), 255)
             return blank_image, blank_image, f"❌ Invalid {input_type} image format. Please try again."
         
-        # Check if image has any content (not completely empty/white)
+        # Check if image has any content
         try:
             img_array = np.array(image)
-            # Convert to greyscale if needed (handle RGBA from canvas)
+            # Handle RGBA from canvas
             if len(img_array.shape) == 3:
                 if img_array.shape[2] == 4:
-                    # RGBA - check RGB channels only, ignore alpha
                     img_array = np.mean(img_array[:, :, :3], axis=2)
                 else:
                     img_array = np.mean(img_array, axis=2)
             
-            # Check if image is mostly empty (all white pixels)
-            if np.mean(img_array) > 250:  # Very light, probably empty
+            if np.mean(img_array) > 250:
                 blank_image = Image.new('L', (28, 28), 255)
                 return blank_image, blank_image, f"❌ {input_type.capitalize()} image appears to be empty. Please provide a clearer digit."
         except Exception as e:
@@ -627,13 +587,13 @@ def predict_with_validation(input_method, uploaded_image, drawn_image):
             try:
                 model_path = f'artifacts/{filename}'
                 model = load_model(model_path)
-                # reshape adds batch dimension: (28,28) → (1,28,28) like expand_dims did earlier
+        # reshape adds batch dimension: (28,28) → (1,28,28)
                 prediction = model.predict(img_input.reshape(1, 28, 28), verbose=0)
                 probs = prediction[0]
                 digit = int(probs.argmax())
                 confidence = float(probs[digit]) * 100
                 predictions.append(digit)
-                # sorted with lambda key to get top 5 probabilities
+                # sorted to get top 5 probabilities
                 top_probs = sorted(enumerate(probs), key=lambda x: x[1], reverse=True)[:5]
                 model_rows.append({
                     'arch': arch,
@@ -689,16 +649,14 @@ def predict_with_validation(input_method, uploaded_image, drawn_image):
         
         results_df = pd.DataFrame(table_data)
         
-        # Consensus message
+        # Consensus
         clean_preds = [m['digit'] for m in sorted_models if 'error' not in m and m['digit'] is not None]
         if len(clean_preds) >= 2:
-            # Only show consensus if 2+ models available
             if len(set(clean_preds)) == 1:
                 consensus_msg = "✅ All models agree"
             else:
                 consensus_msg = "⚠️ Models disagree"
         else:
-            # Don't show consensus message for single model
             consensus_msg = ""
 
         return original, img_preprocessed, results_df, consensus_msg
@@ -726,16 +684,12 @@ def predict_with_preview(image):
     if not best_models:
         return None, None, "No trained models found. Please train some models first!"
     
-    # Process images
     try:
-        # Original image (keep as-is for display)
         original = Image.fromarray(image)
         
-        # Preprocessed image (what model sees)
         img_array = preprocess_image(image)
         img_preprocessed = Image.fromarray((img_array * 255).astype('uint8'))
         
-        # Prepare for prediction
         img_input = np.expand_dims(img_array, axis=0)
     except Exception as e:
         return None, None, f"Error processing image: {e}"
@@ -745,11 +699,9 @@ def predict_with_preview(image):
     
     for arch, (filename, accuracy) in best_models.items():
         try:
-            # Load model
             model_path = f'artifacts/{filename}'
             model = load_model(model_path)
             
-            # Predict
             pred = model.predict(img_input, verbose=0)
             digit = int(pred.argmax())
             confidence = float(pred[0][digit]) * 100
@@ -768,13 +720,11 @@ def predict_with_preview(image):
     elif predictions:
         results.append(f"\n⚠️ Disagreement: Models predict different digits")
         
-    # Return multiple values as a tuple -- Gradio unpacks them into matching output components
-    # (original image -> first output, preprocessed -> second, text -> third)
+    # Return tuple -- Gradio unpacks into matching output components
     return original, img_preprocessed, "\n".join(results)
 
 
-# Create Gradio interface with tabs
-# 'with' block means everything indented inside belongs to that container
+# 'with' block = everything indented belongs to that container
 with gr.Blocks(theme=custom_theme, title="MNIST Digit Classifier") as demo:
     gr.Markdown("# 🔢 MNIST Digit Recognition")
     gr.Markdown("Train and compare neural networks for handwritten digit classification")
@@ -954,9 +904,7 @@ with gr.Blocks(theme=custom_theme, title="MNIST Digit Classifier") as demo:
         # Time comparison chart
         time_chart = gr.Plot(label="Performance Dashboard")
         
-        # .then() chains callbacks sequentially -- one button click triggers:
-        # load history table -> then accuracy chart -> then time chart
-        # each step waits for the previous one to finish before starting
+        # .then() chains callbacks -- refresh history after training
         refresh_button.click(
             fn=get_training_history,
             outputs=history_table,

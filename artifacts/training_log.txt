@@ -1,0 +1,21 @@
+============================================================
+  TRAINING COMPLETE - 9 runs in 23311s
+============================================================
+
+Run ID   Architecture    Accuracy     Time       Filename
+-------- --------------- ------------ ---------- ------------------------------
+1        MLP             97.79%      122.7s     model_mlp_run1.keras
+2        MLP             97.70%      110.5s     model_mlp_run2.keras
+3        MLP             97.56%      72.8s     model_mlp_run3.keras
+4        Small CNN       98.53%      759.1s     model_small_cnn_run4.keras
+5        Small CNN       98.51%      824.6s     model_small_cnn_run5.keras
+6        Small CNN       98.54%      857.1s     model_small_cnn_run6.keras
+7        Deeper CNN      99.02%      6245.2s     model_deeper_cnn_run7.keras
+8        Deeper CNN      99.36%      7620.7s     model_deeper_cnn_run8.keras
+9        Deeper CNN      99.17%      6690.7s     model_deeper_cnn_run9.keras
+
+MLP: avg 97.68% +/- 0.09%, avg time 102.0s
+
+Small CNN: avg 98.53% +/- 0.01%, avg time 813.6s
+
+Deeper CNN: avg 99.18% +/- 0.14%, avg time 6852.2s
